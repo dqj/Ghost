@@ -23,7 +23,7 @@ utils = {
     // ### Manual Default Options
     // These must be provided by the endpoint
     // browseDefaultOptions - valid for all browse api endpoints
-    browseDefaultOptions: ['page', 'limit', 'fields', 'filter', 'order', 'debug'],
+    browseDefaultOptions: ['page', 'limit', 'fields'],
     // idDefaultOptions - valid whenever an id is valid
     idDefaultOptions: ['id'],
 
@@ -38,7 +38,8 @@ utils = {
         /**
          * ### Do Validate
          * Validate the object and options passed to an endpoint
-         * @argument {...*} [arguments] object or object and options hash
+         * @argument object
+         * @argument options
          */
         return function doValidate() {
             var object, options, permittedOptions;
@@ -113,12 +114,11 @@ utils = {
                 slug: {isSlug: true},
                 page: {matches: /^\d+$/},
                 limit: {matches: /^\d+|all$/},
-                fields: {matches: /^[\w, ]+$/},
-                order: {matches: /^[a-z0-9_,\. ]+$/i},
+                fields: {matches: /^[a-z0-9_,]+$/},
                 name: {}
             },
             // these values are sanitised/validated separately
-            noValidation = ['data', 'context', 'include', 'filter'],
+            noValidation = ['data', 'context', 'include'],
             errors = [];
 
         _.each(options, function (value, key) {
@@ -137,14 +137,13 @@ utils = {
     },
 
     /**
-     * ## Detect Public Context
-     * Calls parse context to expand the options.context object
+     * ## Is Public Context?
+     * If this is a public context, return true
      * @param {Object} options
      * @returns {Boolean}
      */
-    detectPublicContext: function detectPublicContext(options) {
-        options.context = permissions.parseContext(options.context);
-        return options.context.public;
+    isPublicContext: function isPublicContext(options) {
+        return permissions.parseContext(options.context).public;
     },
     /**
      * ## Apply Public Permissions
@@ -175,7 +174,7 @@ utils = {
         return function doHandlePublicPermissions(options) {
             var permsPromise;
 
-            if (utils.detectPublicContext(options)) {
+            if (utils.isPublicContext(options)) {
                 permsPromise = utils.applyPublicPermissions(docName, method, options);
             } else {
                 permsPromise = permissions.canThis(options.context)[method][singular](options.data);
@@ -184,7 +183,7 @@ utils = {
             return permsPromise.then(function permissionGranted() {
                 return options;
             }).catch(function handleError(error) {
-                return errors.formatAndRejectAPIError(error);
+                return errors.handleAPIError(error);
             });
         };
     },
@@ -215,28 +214,25 @@ utils = {
                 // forward error to next catch()
                 return Promise.reject(error);
             }).catch(function handleError(error) {
-                return errors.formatAndRejectAPIError(error);
+                return errors.handleAPIError(error);
             });
         };
     },
 
-    trimAndLowerCase: function trimAndLowerCase(params) {
-        params = params || '';
-        if (_.isString(params)) {
-            params = params.split(',');
-        }
-
-        return _.map(params, function (item) {
-            return item.trim().toLowerCase();
-        });
-    },
-
     prepareInclude: function prepareInclude(include, allowedIncludes) {
-        return _.intersection(this.trimAndLowerCase(include), allowedIncludes);
+        include = include || '';
+        include = _.intersection(include.split(','), allowedIncludes);
+
+        return include;
     },
 
     prepareFields: function prepareFields(fields) {
-        return this.trimAndLowerCase(fields);
+        fields = fields || '';
+        if (_.isString(fields)) {
+            fields = fields.split(',');
+        }
+
+        return fields;
     },
 
     /**

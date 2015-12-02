@@ -55,16 +55,13 @@ frontendRoutes = function frontendRoutes(middleware) {
     });
 
     // Index
-    indexRouter.route('/').get(frontend.index);
-    indexRouter.route('/' + routeKeywords.page + '/:page/').get(frontend.index);
+    indexRouter.route('/').get(frontend.homepage);
+    indexRouter.route('/' + routeKeywords.page + '/:page/').get(frontend.homepage);
     indexRouter.use(rssRouter);
 
     // Tags
     tagRouter.route('/').get(frontend.tag);
     tagRouter.route('/' + routeKeywords.page + '/:page/').get(frontend.tag);
-    tagRouter.route('/edit?').get(function redirect(req, res) {
-        res.redirect(subdir + '/ghost/settings/tags/' + req.params.slug + '/');
-    });
     tagRouter.use(rssRouter);
 
     // Authors

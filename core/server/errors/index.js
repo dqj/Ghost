@@ -207,7 +207,7 @@ errors = {
         return {errors: errors, statusCode: statusCode};
     },
 
-    formatAndRejectAPIError: function (error, permsMessage) {
+    handleAPIError: function (error, permsMessage) {
         if (!error) {
             return this.rejectError(
                 new this.NoPermissionError(permsMessage || 'You do not have permission to perform this action')
@@ -232,14 +232,6 @@ errors = {
         }
 
         return this.rejectError(new this.InternalServerError(error));
-    },
-
-    handleAPIError: function errorHandler(err, req, res, next) {
-        /*jshint unused:false */
-        var httpErrors = this.formatHttpErrors(err);
-        this.logError(err);
-        // Send a properly formatted HTTP response containing the errors
-        res.status(httpErrors.statusCode).json({errors: httpErrors.errors});
     },
 
     renderErrorPage: function (code, err, req, res, next) {
@@ -382,7 +374,6 @@ _.each([
     'logErrorAndExit',
     'logErrorWithRedirect',
     'handleAPIError',
-    'formatAndRejectAPIError',
     'formatHttpErrors',
     'renderErrorPage',
     'error404',

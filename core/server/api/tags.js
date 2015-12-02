@@ -8,7 +8,7 @@ var Promise      = require('bluebird'),
     pipeline     = require('../utils/pipeline'),
 
     docName      = 'tags',
-    allowedIncludes = ['count.posts'],
+    allowedIncludes = ['post_count'],
     tags;
 
 /**

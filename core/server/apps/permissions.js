@@ -2,7 +2,7 @@
 var fs = require('fs'),
     Promise = require('bluebird'),
     path = require('path'),
-    parsePackageJson = require('../utils/parse-package-json').parsePackageJson;
+    parsePackageJson = require('../require-tree').parsePackageJson;
 
 function AppPermissions(appPath) {
     this.appPath = appPath;
@@ -46,7 +46,19 @@ AppPermissions.prototype.checkPackageContentsExists = function () {
 
 // Get the contents of the package.json in the appPath root
 AppPermissions.prototype.getPackageContents = function () {
-    return parsePackageJson(this.packagePath);
+    var messages = {
+        errors: [],
+        warns: []
+    };
+
+    return parsePackageJson(this.packagePath, messages)
+        .then(function (parsed) {
+            if (!parsed) {
+                return Promise.reject(new Error(messages.errors[0].message));
+            }
+
+            return parsed;
+        });
 };
 
 // Default permissions for an App.

@@ -8,7 +8,7 @@ var _           = require('lodash'),
     errors      = require('../errors'),
     session     = require('cookie-session'),
     utils       = require('../utils'),
-    privateBlogging;
+    private;
 
 function verifySessionHash(salt, hash) {
     if (!salt || !hash) {
@@ -24,7 +24,7 @@ function verifySessionHash(salt, hash) {
     });
 }
 
-privateBlogging = {
+private = {
     checkIsPrivate: function checkIsPrivate(req, res, next) {
         return api.settings.read({context: {internal: true}, key: 'isPrivate'}).then(function then(response) {
             var pass = response.settings[0];
@@ -64,7 +64,7 @@ privateBlogging = {
                 res.end(buf);
             });
         } else {
-            return privateBlogging.authenticatePrivateSession(req, res, next);
+            return private.authenticatePrivateSession(req, res, next);
         }
     },
 
@@ -133,4 +133,4 @@ privateBlogging = {
     }
 };
 
-module.exports = privateBlogging;
+module.exports = private;

@@ -21,6 +21,23 @@ var _              = require('lodash'),
     mochaPath      = path.resolve(cwd + '/node_modules/grunt-mocha-cli/node_modules/mocha/bin/mocha'),
     emberPath      = path.resolve(cwd + '/core/client/node_modules/.bin/ember'),
 
+    // ## Build File Patterns
+    // A list of files and patterns to include when creating a release zip.
+    // This is read from the `.npmignore` file and all patterns are inverted as the `.npmignore`
+    // file defines what to ignore, whereas we want to define what to include.
+    buildGlob = (function () {
+        /*jslint stupid:true */
+        return fs.readFileSync('.npmignore', {encoding: 'utf8'}).split('\n').map(function (pattern) {
+            if (pattern[0] === '!') {
+                return pattern.substr(1);
+            }
+            return '!' + pattern;
+        }).filter(function (pattern) {
+            // Remove empty patterns
+            return pattern !== '!';
+        });
+    }()),
+
     // ## Grunt configuration
 
     configureGrunt = function (grunt) {
@@ -113,6 +130,7 @@ var _              = require('lodash'),
                     '!config*.js', // note: i added this, do we want this linted?
                     'core/*.js',
                     'core/server/**/*.js',
+                    'core/shared/**/*.js',
                     'core/test/**/*.js',
                     '!core/test/coverage/**',
                     '!core/shared/vendor/**/*.js'
@@ -126,7 +144,8 @@ var _              = require('lodash'),
 
                 client: {
                     options: {
-                        config: 'core/client/.jscsrc'
+                        esnext: true,
+                        disallowObjectController: true
                     },
 
                     files: {
@@ -134,22 +153,9 @@ var _              = require('lodash'),
                             'core/client/**/*.js',
                             '!core/client/node_modules/**/*.js',
                             '!core/client/bower_components/**/*.js',
-                            '!core/client/tests/**/*.js',
                             '!core/client/tmp/**/*.js',
                             '!core/client/dist/**/*.js',
                             '!core/client/vendor/**/*.js'
-                        ]
-                    }
-                },
-
-                client_tests: {
-                    options: {
-                        config: 'core/client/tests/.jscsrc'
-                    },
-
-                    files: {
-                        src: [
-                            'core/client/tests/**/*.js'
                         ]
                     }
                 },
@@ -161,6 +167,7 @@ var _              = require('lodash'),
                             '!config*.js', // note: i added this, do we want this linted?
                             'core/*.js',
                             'core/server/**/*.js',
+                            'core/shared/**/*.js',
                             'core/test/**/*.js',
                             '!core/test/coverage/**',
                             '!core/shared/vendor/**/*.js'
@@ -222,8 +229,8 @@ var _              = require('lodash'),
                 // #### All Integration tests
                 integration: {
                     src: [
-                        'core/test/integration/**/*_spec.js',
-                        'core/test/integration/**/*_spec.js',
+                        'core/test/integration/**/model*_spec.js',
+                        'core/test/integration/**/api*_spec.js',
                         'core/test/integration/*_spec.js'
                     ]
                 },
@@ -397,6 +404,16 @@ var _              = require('lodash'),
                 }
             },
 
+            // ### grunt-contrib-copy
+            // Copy files into their correct locations as part of building assets, or creating release zips
+            copy: {
+                release: {
+                    expand: true,
+                    src: buildGlob,
+                    dest: '<%= paths.releaseBuild %>/'
+                }
+            },
+
             // ### grunt-contrib-compress
             // Zip up files for builds / releases
             compress: {
@@ -541,16 +558,11 @@ var _              = require('lodash'),
         grunt.registerTask('ensureConfig', function () {
             var config = require('./core/server/config'),
                 done = this.async();
-
-            if (!process.env.TEST_SUITE || process.env.TEST_SUITE !== 'client') {
-                config.load().then(function () {
-                    done();
-                }).catch(function (err) {
-                    grunt.fail.fatal(err.stack);
-                });
-            } else {
+            config.load().then(function () {
                 done();
-            }
+            }).catch(function (err) {
+                grunt.fail.fatal(err.stack);
+            });
         });
 
         // #### Reset Database to "New" state *(Utility Task)*
@@ -574,7 +586,7 @@ var _              = require('lodash'),
 
         grunt.registerTask('test', function (test) {
             if (!test) {
-                grunt.fail.fatal('No test provided. `grunt test` expects a filename. e.g.: `grunt test:unit/apps_spec.js`. Did you mean `npm test` or `grunt validate`?');
+                grunt.log.write('no test provided');
             }
 
             grunt.task.run('test-setup', 'shell:test:' + test);
@@ -589,19 +601,7 @@ var _              = require('lodash'),
         // manages the build of your environment and then calls `grunt test`
         //
         // `grunt validate` is called by `npm test` and is used by Travis.
-        grunt.registerTask('validate', 'Run tests and lint code', function () {
-            if (process.env.TEST_SUITE === 'server') {
-                grunt.task.run(['test-server']);
-            } else if (process.env.TEST_SUITE === 'client') {
-                grunt.task.run(['test-client']);
-            } else if (process.env.TEST_SUITE === 'lint') {
-                grunt.task.run(['lint']);
-            } else {
-                grunt.task.run(['validate-all']);
-            }
-        });
-
-        grunt.registerTask('validate-all', 'Lint code and run all tests',
+        grunt.registerTask('validate', 'Run tests and lint code',
             ['init', 'lint', 'test-all']);
 
         // ### Test-All
@@ -609,17 +609,11 @@ var _              = require('lodash'),
         //
         // `grunt test-all` will lint and test your pre-built local Ghost codebase.
         //
-        // `grunt test-all` runs all 6 test suites. See the individual sub tasks below for
+        // `grunt test-all` runs jshint and jscs as well as all 6 test suites. See the individual sub tasks below for
         // details of each of the test suites.
         //
-        grunt.registerTask('test-all', 'Run tests for both server and client',
-            ['init', 'test-server', 'test-client']);
-
-        grunt.registerTask('test-server', 'Run server tests',
-            ['init', 'test-routes', 'test-module', 'test-unit', 'test-integration']);
-
-        grunt.registerTask('test-client', 'Run client tests',
-            ['init', 'test-ember']);
+        grunt.registerTask('test-all', 'Run tests and lint code',
+            ['test-routes', 'test-module', 'test-unit', 'test-integration', 'test-ember', 'test-functional']);
 
         // ### Lint
         //
@@ -936,22 +930,7 @@ var _              = require('lodash'),
             ' - Copy files to release-folder/#/#{version} directory\n' +
             ' - Clean out unnecessary files (travis, .git*, etc)\n' +
             ' - Zip files in release-folder to dist-folder/#{version} directory',
-            function () {
-                grunt.config.set('copy.release', {
-                    expand: true,
-                    // #### Build File Patterns
-                    // A list of files and patterns to include when creating a release zip.
-                    // This is read from the `.npmignore` file and all patterns are inverted as the `.npmignore`
-                    // file defines what to ignore, whereas we want to define what to include.
-                    src: fs.readFileSync('.npmignore', 'utf8').split('\n').filter(Boolean).map(function (pattern) {
-                        return pattern[0] === '!' ? pattern.substr(1) : '!' + pattern;
-                    }),
-                    dest: '<%= paths.releaseBuild %>/'
-                });
-
-                grunt.task.run(['init', 'shell:ember:prod', 'clean:release',  'shell:dedupe', 'shell:shrinkwrap', 'copy:release', 'compress:release']);
-            }
-        );
+            ['init', 'shell:ember:prod', 'clean:release',  'shell:dedupe', 'shell:shrinkwrap', 'copy:release', 'compress:release']);
     };
 
 module.exports = configureGrunt;
